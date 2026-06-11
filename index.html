@@ -1230,6 +1230,9 @@ async function addTodo() {
   timeInput.value = '09:00';
   parsedHint.classList.remove('show');
   render();
+  if (todo.date && providerToken) {
+    await addToGoogleCalendar(todo.id);
+  }
 }
 
 async function toggleTodo(id) {
