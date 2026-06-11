@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ToDo - 黒板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kurenaido&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Klee One', 'Zen Kurenaido', serif;
+    background: #5c4033;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 32px 16px;
+  }
+
+  /* Wooden frame */
+  .board-frame {
+    background: linear-gradient(135deg, #8B6914 0%, #a07828 20%, #6b4f1a 50%, #a07828 80%, #8B6914 100%);
+    padding: 18px;
+    border-radius: 6px;
+    box-shadow:
+      0 8px 32px rgba(0,0,0,0.5),
+      inset 0 2px 4px rgba(255,255,255,0.15),
+      inset 0 -2px 4px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 580px;
+  }
+
+  /* Chalkboard surface */
+  .container {
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 80%, rgba(255,255,255,0.02) 0%, transparent 50%),
+      linear-gradient(170deg, #2a4a3a 0%, #1e3a2c 30%, #1a3328 50%, #1e3a2c 70%, #2a4a3a 100%);
+    border-radius: 2px;
+    padding: 32px 28px 28px;
+    position: relative;
+    color: rgba(255,255,255,0.88);
+  }
+
+  /* Chalk dust texture overlay */
+  .container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background-image:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* Chalk tray */
+  .board-frame::after {
+    content: '';
+    display: block;
+    margin-top: 10px;
+    height: 14px;
+    background: linear-gradient(180deg, #6b4f1a, #8B6914 40%, #a07828);
+    border-radius: 0 0 4px 4px;
+    box-shadow: inset 0 2px 3px rgba(0,0,0,0.3);
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  h1 {
+    font-family: 'Klee One', serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.92);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    letter-spacing: 4px;
+  }
+
+  .reminder-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1.5px dashed rgba(255,255,255,0.35);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: 'Klee One', serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.5);
+    transition: all 0.2s;
+  }
+
+  .reminder-toggle:hover {
+    border-color: rgba(255,255,200,0.6);
+    color: rgba(255,255,200,0.8);
+  }
+
+  .reminder-toggle.active {
+    border-color: rgba(255,255,150,0.6);
+    color: rgba(255,255,150,0.9);
+    background: rgba(255,255,150,0.05);
+  }
+
+  .reminder-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  .reminder-info {
+    text-align: right;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    margin-top: -14px;
+    margin-bottom: 16px;
+    padding-right: 4px;
+  }
+
+  .reminder-info.active {
+    color: rgba(255,255,150,0.6);
+  }
+
+  /* Chalk line separator */
+  .chalk-line {
+    height: 1.5px;
+    background: rgba(255,255,255,0.15);
+    margin: 16px 0;
+    border-radius: 1px;
+  }
+
+  .input-section {
+    margin-bottom: 20px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .input-row input[type="text"] {
+    flex: 1;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    font-family: 'Klee One', serif;
+    font-size: 15px;
+    color: rgba(255,255,255,0.9);
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .input-row input[type="text"]::placeholder {
+    color: rgba(255,255,255,0.3);
+  }
+
+  .input-row input[type="text"]:focus {
+    border-color: rgba(255,255,200,0.5);
+    background: rgba(255,255,255,0.1);
+  }
+
+  .input-row button {
+    padding: 10px 18px;
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.9);
+    border: 1.5px solid rgba(255,255,255,0.25);
+    border-radius: 6px;
+    font-family: 'Klee One', serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .input-row button:hover {
+    background: rgba(255,255,255,0.18);
+    border-color: rgba(255,255,255,0.4);
+  }
+
+  .date-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .date-row label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.45);
+    font-weight: 600;
+  }
+
+  .date-row input {
+    padding: 6px 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    font-family: 'Klee One', serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    outline: none;
+    transition: all 0.2s;
+    color-scheme: dark;
+  }
+
+  .date-row input:focus {
+    border-color: rgba(255,255,200,0.5);
+  }
+
+  .parsed-hint {
+    margin-top: 8px;
+    padding: 5px 10px;
+    background: rgba(255,255,150,0.08);
+    border: 1px dashed rgba(255,255,150,0.3);
+    border-radius: 6px;
+    font-size: 13px;
+    color: rgba(255,255,150,0.8);
+    display: none;
+    animation: slideIn 0.2s ease;
+  }
+
+  .parsed-hint.show { display: block; }
+
+  .parsed-hint.command-cancel {
+    background: rgba(255,150,150,0.1);
+    border-color: rgba(255,150,150,0.35);
+    color: rgba(255,150,150,0.9);
+  }
+
+  .parsed-hint.command-done {
+    background: rgba(150,255,180,0.08);
+    border-color: rgba(150,255,180,0.3);
+    color: rgba(150,255,180,0.85);
+  }
+
+  .parsed-hint.command-change {
+    background: rgba(150,200,255,0.08);
+    border-color: rgba(150,200,255,0.3);
+    color: rgba(150,200,255,0.85);
+  }
+
+  .filters {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .filters button {
+    flex: 1;
+    padding: 7px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    font-family: 'Klee One', serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: rgba(255,255,255,0.35);
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+
+  .filters button:hover {
+    color: rgba(255,255,255,0.6);
+  }
+
+  .filters button.active {
+    color: rgba(255,255,255,0.9);
+    border-bottom-color: rgba(255,255,255,0.5);
+    text-shadow: 0 0 8px rgba(255,255,255,0.15);
+  }
+
+  .stats {
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+
+  .todo-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .todo-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 8px;
+    border-bottom: 1px dashed rgba(255,255,255,0.08);
+    transition: opacity 0.2s;
+    animation: slideIn 0.25s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .todo-item:last-child { border-bottom: none; }
+
+  .todo-item.done { opacity: 0.35; }
+
+  /* Custom chalk checkbox */
+  .todo-item input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid rgba(255,255,255,0.4);
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .todo-item input[type="checkbox"]:checked {
+    border-color: rgba(255,255,255,0.6);
+  }
+
+  .todo-item input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: -1px;
+    width: 6px;
+    height: 12px;
+    border: solid rgba(255,255,255,0.8);
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(40deg);
+  }
+
+  .todo-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .todo-text {
+    font-size: 16px;
+    word-break: break-word;
+    cursor: pointer;
+    display: block;
+    color: rgba(255,255,255,0.88);
+    text-shadow: 0 0 1px rgba(255,255,255,0.1);
+  }
+
+  .todo-item.done .todo-text {
+    text-decoration: line-through;
+    color: rgba(255,255,255,0.3);
+    text-decoration-color: rgba(255,255,255,0.25);
+  }
+
+  .todo-date {
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 2px;
+  }
+
+  /* Colored chalk: pink for overdue */
+  .todo-date.overdue {
+    color: rgba(255,150,150,0.9);
+    font-weight: 600;
+  }
+
+  /* Colored chalk: blue for today */
+  .todo-date.today {
+    color: rgba(150,200,255,0.9);
+    font-weight: 600;
+  }
+
+  .todo-text.editing {
+    outline: none;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    padding: 2px 6px;
+    border: 1px dashed rgba(255,255,200,0.4);
+  }
+
+  .todo-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .action-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.25);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .action-btn:hover {
+    color: rgba(150,200,255,0.9);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .action-btn.delete-btn:hover {
+    color: rgba(255,150,150,0.9);
+    background: rgba(255,150,150,0.08);
+  }
+
+  .action-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  /* Green chalk for calendar added */
+  .gcal-added {
+    color: rgba(150,255,180,0.8) !important;
+    background: rgba(150,255,180,0.06) !important;
+  }
+
+  .empty {
+    text-align: center;
+    color: rgba(255,255,255,0.25);
+    padding: 40px 0;
+    font-size: 15px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: rgba(255,255,255,0.92);
+    color: #1a3328;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'Klee One', serif;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Decorative chalk doodle in corner */
+  .chalk-deco {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.12);
+    letter-spacing: 1px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="board-frame">
+<div class="container">
+  <div class="chalk-deco">KOKUBAN Todo</div>
+
+  <div class="header">
+    <h1>きょうの予定</h1>
+    <button class="reminder-toggle" id="reminderToggle" onclick="toggleReminder()">
+      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+      <span id="reminderLabel">OFF</span>
+    </button>
+  </div>
+  <div class="reminder-info" id="reminderInfo"></div>
+
+  <div class="input-section">
+    <div class="input-row">
+      <input type="text" id="newTask" placeholder="明日15時に会議の資料を準備..." autofocus>
+      <button onclick="addTodo()">書く</button>
+    </div>
+    <div class="parsed-hint" id="parsedHint"></div>
+    <div class="date-row">
+      <label>期日</label>
+      <input type="date" id="newDate">
+      <input type="time" id="newTime" value="09:00">
+    </div>
+  </div>
+
+  <div class="chalk-line"></div>
+
+  <div class="filters">
+    <button class="active" onclick="setFilter('all', this)">すべて</button>
+    <button onclick="setFilter('active', this)">未完了</button>
+    <button onclick="setFilter('done', this)">完了</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <ul class="todo-list" id="todoList"></ul>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let todos = JSON.parse(localStorage.getItem('todos') || '[]');
+let filter = 'all';
+let reminderEnabled = localStorage.getItem('reminderEnabled') === 'true';
+
+const input = document.getElementById('newTask');
+const dateInput = document.getElementById('newDate');
+const timeInput = document.getElementById('newTime');
+const parsedHint = document.getElementById('parsedHint');
+
+input.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+input.addEventListener('input', () => previewParsedDate());
+
+function save() {
+  localStorage.setItem('todos', JSON.stringify(todos));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// --- Natural Language Date Parser ---
+
+function parseNaturalDate(text) {
+  const now = new Date();
+  let date = null;
+  let time = null;
+  let matched = [];
+
+  if (/今日/.test(text)) {
+    date = new Date(now);
+    matched.push('今日');
+  }
+  if (/明日/.test(text)) {
+    date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    matched.push('明日');
+  }
+  if (/明後日|あさって/.test(text)) {
+    date = new Date(now);
+    date.setDate(date.getDate() + 2);
+    matched.push(text.match(/明後日|あさって/)[0]);
+  }
+  if (/明々後日|しあさって/.test(text)) {
+    date = new Date(now);
+    date.setDate(date.getDate() + 3);
+    matched.push(text.match(/明々後日|しあさって/)[0]);
+  }
+  const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+  const nextWeekDay = text.match(/来週(の)?(日|月|火|水|木|金|土)(曜日?)?/);
+  if (nextWeekDay) {
+    const targetDay = weekdayNames.indexOf(nextWeekDay[2]);
+    date = new Date(now);
+    const currentDay = date.getDay();
+    let diff = targetDay - currentDay + 7;
+    date.setDate(date.getDate() + diff);
+    matched.push(nextWeekDay[0]);
+  }
+  if (!nextWeekDay && /来週/.test(text)) {
+    date = new Date(now);
+    const currentDay = date.getDay();
+    const diff = (1 - currentDay + 7) % 7 || 7;
+    date.setDate(date.getDate() + diff);
+    matched.push('来週');
+  }
+  const nextNextWeekDay = text.match(/再来週(の)?(日|月|火|水|木|金|土)(曜日?)?/);
+  if (nextNextWeekDay) {
+    const targetDay = weekdayNames.indexOf(nextNextWeekDay[2]);
+    date = new Date(now);
+    const currentDay = date.getDay();
+    let diff = targetDay - currentDay + 14;
+    date.setDate(date.getDate() + diff);
+    matched.push(nextNextWeekDay[0]);
+  }
+  if (!nextNextWeekDay && /再来週/.test(text)) {
+    date = new Date(now);
+    const currentDay = date.getDay();
+    const diff = ((1 - currentDay + 7) % 7 || 7) + 7;
+    date.setDate(date.getDate() + diff);
+    matched.push('再来週');
+  }
+  const thisWeekDay = text.match(/今週(の)?(日|月|火|水|木|金|土)(曜日?)?/);
+  if (thisWeekDay) {
+    const targetDay = weekdayNames.indexOf(thisWeekDay[2]);
+    date = new Date(now);
+    const currentDay = date.getDay();
+    let diff = targetDay - currentDay;
+    if (diff < 0) diff += 7;
+    date.setDate(date.getDate() + diff);
+    matched.push(thisWeekDay[0]);
+  }
+  const nextDayMatch = text.match(/(次|今度)(の)?(日|月|火|水|木|金|土)(曜日?)?/);
+  if (nextDayMatch && !date) {
+    const targetDay = weekdayNames.indexOf(nextDayMatch[3]);
+    date = new Date(now);
+    const currentDay = date.getDay();
+    let diff = targetDay - currentDay;
+    if (diff <= 0) diff += 7;
+    date.setDate(date.getDate() + diff);
+    matched.push(nextDayMatch[0]);
+  }
+  const daysLater = text.match(/(\d+)日後/);
+  if (daysLater) {
+    date = new Date(now);
+    date.setDate(date.getDate() + parseInt(daysLater[1]));
+    matched.push(daysLater[0]);
+  }
+  if (/週末/.test(text) && !date) {
+    date = new Date(now);
+    const currentDay = date.getDay();
+    let diff = 6 - currentDay;
+    if (diff <= 0) diff += 7;
+    date.setDate(date.getDate() + diff);
+    matched.push('週末');
+  }
+  const nextMonthDay = text.match(/来月(の)?(\d{1,2})日/);
+  if (nextMonthDay) {
+    date = new Date(now.getFullYear(), now.getMonth() + 1, parseInt(nextMonthDay[2]));
+    matched.push(nextMonthDay[0]);
+  }
+  if (!nextMonthDay && /来月/.test(text)) {
+    date = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    matched.push('来月');
+  }
+  const monthDay = text.match(/(\d{1,2})月(\d{1,2})日/);
+  if (monthDay && !date) {
+    const m = parseInt(monthDay[1]) - 1;
+    const d = parseInt(monthDay[2]);
+    date = new Date(now.getFullYear(), m, d);
+    if (date < now) {
+      date.setFullYear(date.getFullYear() + 1);
+    }
+    matched.push(monthDay[0]);
+  }
+
+  const timeHM = text.match(/(\d{1,2})時(\d{1,2})分/);
+  const timeHalf = text.match(/(\d{1,2})時半/);
+  const timeH = text.match(/(\d{1,2})時(?!半|\d)/);
+  const timeColon = text.match(/(\d{1,2}):(\d{2})/);
+
+  if (timeHM) {
+    time = `${String(parseInt(timeHM[1])).padStart(2,'0')}:${String(parseInt(timeHM[2])).padStart(2,'0')}`;
+    matched.push(timeHM[0]);
+  } else if (timeHalf) {
+    time = `${String(parseInt(timeHalf[1])).padStart(2,'0')}:30`;
+    matched.push(timeHalf[0]);
+  } else if (timeColon) {
+    time = `${String(parseInt(timeColon[1])).padStart(2,'0')}:${timeColon[2]}`;
+    matched.push(timeColon[0]);
+  } else if (timeH) {
+    time = `${String(parseInt(timeH[1])).padStart(2,'0')}:00`;
+    matched.push(timeH[0]);
+  }
+
+  if (time) {
+    const hour = parseInt(time.split(':')[0]);
+    if (/午後|PM/i.test(text) && hour < 12) {
+      time = `${String(hour + 12).padStart(2,'0')}:${time.split(':')[1]}`;
+    }
+    if (/午前|AM/i.test(text) && hour === 12) {
+      time = `00:${time.split(':')[1]}`;
+    }
+  }
+
+  if (!time) {
+    if (/朝(?:イチ|いち|一)?/.test(text)) { time = '09:00'; matched.push(text.match(/朝(?:イチ|いち|一)?/)[0]); }
+    else if (/昼/.test(text)) { time = '12:00'; matched.push('昼'); }
+    else if (/夕方/.test(text)) { time = '17:00'; matched.push('夕方'); }
+    else if (/夜/.test(text)) { time = '21:00'; matched.push('夜'); }
+  }
+
+  if (/明朝/.test(text) && !date) {
+    date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    if (!time) time = '09:00';
+    matched.push('明朝');
+  }
+
+  if (!date && !time) return null;
+
+  return {
+    date: date ? toDateStr(date) : null,
+    time: time || null,
+    matched
+  };
+}
+
+function cleanTaskText(text, matched) {
+  let cleaned = text;
+  for (const m of matched) {
+    cleaned = cleaned.replace(m, '');
+  }
+  cleaned = cleaned.replace(/[にまでのへ、,]+$/g, '').replace(/^[にまでのへ、,]+/g, '');
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+  return cleaned || text;
+}
+
+// --- Command Parser ---
+
+function parseCommand(text) {
+  // Detect action keywords
+  const cancelMatch = text.match(/(を|の)?(中止|キャンセル|取り消し|取消|やめる|削除)/);
+  const doneMatch = text.match(/(を|が)?(完了|済み|終わった|終了|できた|おわり)/);
+  // "変更" pattern: "AをBに変更" or "Aを変更してBに"
+  const changeMatch = text.match(/(を|の)?(変更|移動|延期|リスケ|ずらす|繰り下げ)/);
+
+  if (!cancelMatch && !doneMatch && !changeMatch) return null;
+
+  let action, actionWord;
+  if (cancelMatch) { action = 'cancel'; actionWord = cancelMatch[0]; }
+  else if (doneMatch) { action = 'done'; actionWord = doneMatch[0]; }
+  else { action = 'change'; actionWord = changeMatch[0]; }
+
+  // For "change", find the destination date/time after the action word
+  // e.g. "明日の会議を来週月曜に変更" → source is before action, destination is around action
+  let newDate = null, newTime = null;
+
+  if (action === 'change') {
+    // Split text around the action word to find "to" part
+    const actionIdx = text.indexOf(actionWord);
+    const beforeAction = text.substring(0, actionIdx);
+    const afterAction = text.substring(actionIdx);
+
+    // Look for destination date in the "に変更" pattern
+    // Try: "Aを B に変更" → B is after を and before に変更
+    // Or: "Aを変更して B に" → B is after 変更
+    // Simpler: find TWO date expressions. First = source, second = destination
+    const allDates = findAllDates(text);
+    if (allDates.length >= 2) {
+      newDate = allDates[1].date;
+      newTime = allDates[1].time;
+    }
+
+    // Also check for time-only changes like "1時間遅らせる" or "15時に変更"
+    const afterParsed = parseNaturalDate(afterAction);
+    if (afterParsed) {
+      if (afterParsed.date) newDate = afterParsed.date;
+      if (afterParsed.time) newTime = afterParsed.time;
+    }
+  }
+
+  // Find source date/time to identify the task
+  const parsed = parseNaturalDate(text);
+  const sourceDate = parsed ? parsed.date : null;
+  const sourceTime = parsed ? parsed.time : null;
+
+  // Extract keyword (task name hint) by removing date/time/action words
+  let keyword = text;
+  if (parsed) {
+    for (const m of parsed.matched) keyword = keyword.replace(m, '');
+  }
+  keyword = keyword.replace(cancelMatch ? cancelMatch[0] : '', '')
+    .replace(doneMatch ? doneMatch[0] : '', '')
+    .replace(changeMatch ? changeMatch[0] : '', '');
+  keyword = keyword.replace(/[をのにへはがで、,。\s]+/g, ' ').trim();
+
+  return { action, sourceDate, sourceTime, keyword, newDate, newTime, actionWord };
+}
+
+function findAllDates(text) {
+  // Find multiple date expressions by splitting around known patterns
+  const results = [];
+  const patterns = [
+    { re: /今日/, fn: (now) => new Date(now) },
+    { re: /明後日|あさって/, fn: (now) => { const d = new Date(now); d.setDate(d.getDate()+2); return d; } },
+    { re: /明日/, fn: (now) => { const d = new Date(now); d.setDate(d.getDate()+1); return d; } },
+    { re: /来週(の)?(日|月|火|水|木|金|土)/, fn: (now, m) => {
+      const wd = ['日','月','火','水','木','金','土'].indexOf(m[2]);
+      const d = new Date(now); d.setDate(d.getDate() + (wd - d.getDay() + 7)); return d;
+    }},
+    { re: /来週/, fn: (now) => { const d = new Date(now); d.setDate(d.getDate() + (1-d.getDay()+7)%7||7); return d; } },
+    { re: /(\d{1,2})月(\d{1,2})日/, fn: (now, m) => {
+      const d = new Date(now.getFullYear(), parseInt(m[1])-1, parseInt(m[2]));
+      if (d < now) d.setFullYear(d.getFullYear()+1); return d;
+    }},
+  ];
+
+  let remaining = text;
+  const now = new Date();
+  for (const p of patterns) {
+    const m = remaining.match(p.re);
+    if (m) {
+      const date = p.fn(now, m);
+      const timeParsed = parseNaturalDate(remaining.substring(0, m.index + m[0].length));
+      results.push({ date: toDateStr(date), time: timeParsed ? timeParsed.time : null, pos: m.index });
+      remaining = remaining.substring(m.index + m[0].length);
+    }
+  }
+  return results;
+}
+
+function findMatchingTasks(sourceDate, sourceTime, keyword) {
+  return todos.filter(t => {
+    if (t.done) return false;
+    let match = true;
+
+    if (sourceDate) {
+      match = match && t.date === sourceDate;
+    }
+    if (sourceTime) {
+      match = match && t.time === sourceTime;
+    }
+    if (keyword && keyword.length > 0) {
+      match = match && t.text.includes(keyword);
+    }
+    // Need at least one criterion
+    if (!sourceDate && !sourceTime && !keyword) return false;
+    return match;
+  });
+}
+
+function executeCommand(cmd) {
+  const matches = findMatchingTasks(cmd.sourceDate, cmd.sourceTime, cmd.keyword);
+
+  if (matches.length === 0) {
+    showToast('該当するタスクが見つかりません');
+    return false;
+  }
+
+  if (cmd.action === 'cancel') {
+    const names = matches.map(t => t.text).join(', ');
+    matches.forEach(t => {
+      todos = todos.filter(tt => tt.id !== t.id);
+    });
+    save();
+    render();
+    showToast(`「${names}」を消しました`);
+    return true;
+  }
+
+  if (cmd.action === 'done') {
+    matches.forEach(t => { t.done = true; });
+    const names = matches.map(t => t.text).join(', ');
+    save();
+    render();
+    showToast(`「${names}」を完了にしました`);
+    return true;
+  }
+
+  if (cmd.action === 'change') {
+    if (!cmd.newDate && !cmd.newTime) {
+      showToast('変更先の日時を指定してください');
+      return false;
+    }
+    matches.forEach(t => {
+      if (cmd.newDate) t.date = cmd.newDate;
+      if (cmd.newTime) t.time = cmd.newTime;
+      t.addedToGcal = false;
+    });
+    const names = matches.map(t => t.text).join(', ');
+    let dest = '';
+    if (cmd.newDate) dest += formatDate(cmd.newDate);
+    if (cmd.newTime) dest += ` ${cmd.newTime}`;
+    save();
+    render();
+    showToast(`「${names}」を${dest}に変更しました`);
+    return true;
+  }
+
+  return false;
+}
+
+function previewParsedDate() {
+  const text = input.value;
+
+  // Remove stale command classes
+  parsedHint.classList.remove('command-cancel', 'command-done', 'command-change');
+
+  // Try command first
+  const cmd = parseCommand(text);
+  if (cmd) {
+    const matches = findMatchingTasks(cmd.sourceDate, cmd.sourceTime, cmd.keyword);
+    let hint = '';
+    let cssClass = '';
+
+    if (matches.length === 0) {
+      hint = '該当するタスクが見つかりません';
+      cssClass = 'command-cancel';
+    } else if (cmd.action === 'cancel') {
+      hint = `取消: 「${matches.map(t=>t.text).join('、')}」を消します`;
+      cssClass = 'command-cancel';
+    } else if (cmd.action === 'done') {
+      hint = `完了: 「${matches.map(t=>t.text).join('、')}」`;
+      cssClass = 'command-done';
+    } else if (cmd.action === 'change') {
+      let dest = '';
+      if (cmd.newDate) dest += formatDate(cmd.newDate);
+      if (cmd.newTime) dest += ` ${cmd.newTime}`;
+      hint = `変更: 「${matches.map(t=>t.text).join('、')}」→${dest || '(変更先を入力)'}`;
+      cssClass = 'command-change';
+    }
+
+    parsedHint.textContent = hint;
+    parsedHint.classList.add('show', cssClass);
+    return;
+  }
+
+  // Normal date parsing
+  const result = parseNaturalDate(text);
+  if (result && (result.date || result.time)) {
+    let hint = '自動認識: ';
+    if (result.date) hint += formatDate(result.date);
+    if (result.time) hint += ` ${result.time}`;
+    parsedHint.textContent = hint;
+    parsedHint.classList.add('show');
+    if (result.date) dateInput.value = result.date;
+    if (result.time) timeInput.value = result.time;
+  } else {
+    parsedHint.classList.remove('show');
+  }
+}
+
+// --- Reminder ---
+
+function updateReminderUI() {
+  const toggle = document.getElementById('reminderToggle');
+  const label = document.getElementById('reminderLabel');
+  const info = document.getElementById('reminderInfo');
+  if (reminderEnabled) {
+    toggle.classList.add('active');
+    label.textContent = '7:00';
+    info.classList.add('active');
+    info.textContent = '毎朝 7:00 に当日のタスクを通知';
+  } else {
+    toggle.classList.remove('active');
+    label.textContent = 'OFF';
+    info.classList.remove('active');
+    info.textContent = '';
+  }
+}
+
+async function toggleReminder() {
+  if (!reminderEnabled) {
+    if (!('Notification' in window)) { showToast('このブラウザは通知に対応していません'); return; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { showToast('通知が許可されていません'); return; }
+    reminderEnabled = true;
+    localStorage.setItem('reminderEnabled', 'true');
+    showToast('リマインダーを ON にしました');
+  } else {
+    reminderEnabled = false;
+    localStorage.setItem('reminderEnabled', 'false');
+    showToast('リマインダーを OFF にしました');
+  }
+  updateReminderUI();
+}
+
+function getTodayTasks() {
+  const today = todayStr();
+  return todos.filter(t => !t.done && t.date === today);
+}
+
+function sendReminder() {
+  const tasks = getTodayTasks();
+  if (!tasks.length) return;
+  const body = tasks.map(t => `- ${t.text} (${t.time || ''})`).join('\n');
+  new Notification(`本日のタスク: ${tasks.length} 件`, {
+    body: body,
+    icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%231a3328"/><path d="M25 52l15 15 35-35" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'),
+    tag: 'todo-daily-reminder',
+    requireInteraction: true
+  });
+}
+
+function checkReminderTime() {
+  if (!reminderEnabled) return;
+  if (Notification.permission !== 'granted') return;
+  const now = new Date();
+  if (now.getHours() === 7 && now.getMinutes() === 0) {
+    const lastSent = localStorage.getItem('lastReminderDate');
+    const today = todayStr();
+    if (lastSent !== today) {
+      sendReminder();
+      localStorage.setItem('lastReminderDate', today);
+    }
+  }
+}
+
+setInterval(checkReminderTime, 30000);
+checkReminderTime();
+updateReminderUI();
+
+// --- Core ---
+
+function addTodo() {
+  const rawText = input.value.trim();
+  if (!rawText) return;
+
+  // Try command first
+  const cmd = parseCommand(rawText);
+  if (cmd) {
+    const executed = executeCommand(cmd);
+    if (executed) {
+      input.value = '';
+      parsedHint.classList.remove('show', 'command-cancel', 'command-done', 'command-change');
+      return;
+    }
+  }
+
+  // Normal add
+  const parsed = parseNaturalDate(rawText);
+  let taskText = rawText;
+  let taskDate = dateInput.value || '';
+  let taskTime = timeInput.value || '09:00';
+  if (parsed) {
+    taskText = cleanTaskText(rawText, parsed.matched);
+    if (parsed.date) taskDate = parsed.date;
+    if (parsed.time) taskTime = parsed.time;
+  }
+  todos.unshift({ id: Date.now(), text: taskText, done: false, date: taskDate, time: taskTime, addedToGcal: false });
+  input.value = '';
+  dateInput.value = '';
+  timeInput.value = '09:00';
+  parsedHint.classList.remove('show');
+  save();
+  render();
+}
+
+function toggleTodo(id) {
+  const t = todos.find(t => t.id === id);
+  if (t) t.done = !t.done;
+  save();
+  render();
+}
+
+function deleteTodo(id) {
+  todos = todos.filter(t => t.id !== id);
+  save();
+  render();
+}
+
+function editTodo(id, el) {
+  el.contentEditable = true;
+  el.classList.add('editing');
+  el.focus();
+  const finish = () => {
+    el.contentEditable = false;
+    el.classList.remove('editing');
+    const t = todos.find(t => t.id === id);
+    const newText = el.textContent.trim();
+    if (t && newText) t.text = newText;
+    save();
+    render();
+  };
+  el.onblur = finish;
+  el.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(); }
+    if (e.key === 'Escape') { el.onblur = null; render(); }
+  };
+}
+
+function addToGoogleCalendar(id) {
+  const t = todos.find(t => t.id === id);
+  if (!t) return;
+  if (!t.date) { showToast('期日が設定されていません'); return; }
+  const dateStr = t.date.replace(/-/g, '');
+  const timeStr = (t.time || '09:00').replace(/:/g, '');
+  const endMinutes = parseInt((t.time || '09:00').split(':')[0]) * 60 + parseInt((t.time || '09:00').split(':')[1]) + 60;
+  const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+  const endM = String(endMinutes % 60).padStart(2, '0');
+  const start = `${dateStr}T${timeStr}00`;
+  const end = `${dateStr}T${endH}${endM}00`;
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: t.text, dates: `${start}/${end}`, details: 'ToDo App から追加' });
+  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
+  t.addedToGcal = true;
+  save();
+  render();
+  showToast('Google カレンダーに追加します');
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  return `${d.getMonth()+1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+}
+
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr + 'T00:00:00') < today;
+}
+
+function isToday(dateStr) {
+  return dateStr === todayStr();
+}
+
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function render() {
+  const list = document.getElementById('todoList');
+  const filtered = todos.filter(t => filter === 'all' ? true : filter === 'active' ? !t.done : t.done);
+  const doneCount = todos.filter(t => t.done).length;
+  const todayCount = getTodayTasks().length;
+  let statsText = '';
+  if (todos.length) {
+    statsText = `${todos.length} 件中 ${doneCount} 件完了`;
+    if (todayCount) statsText += ` / 本日 ${todayCount} 件`;
+  }
+  document.getElementById('stats').textContent = statsText;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">${todos.length ? '該当するタスクはありません' : 'タスクを追加してください'}</div>`;
+    return;
+  }
+
+  const calIcon = `<svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zM7 12h5v5H7v-5z"/></svg>`;
+  const checkCalIcon = `<svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/><path d="M10.5 17.5l-3-3 1.4-1.4 1.6 1.6 4.6-4.6 1.4 1.4z"/></svg>`;
+
+  list.innerHTML = filtered.map(t => {
+    const overdue = !t.done && isOverdue(t.date);
+    const today = !t.done && isToday(t.date);
+    let dateClass = '';
+    let dateSuffix = '';
+    if (overdue) { dateClass = 'overdue'; dateSuffix = ' (期限切れ)'; }
+    else if (today) { dateClass = 'today'; dateSuffix = ' (本日)'; }
+    const dateHtml = t.date ? `<div class="todo-date ${dateClass}">${formatDate(t.date)} ${t.time || ''}${dateSuffix}</div>` : '';
+    const gcalClass = t.addedToGcal ? 'gcal-added' : '';
+    const gcalTitle = t.addedToGcal ? 'カレンダー追加済み' : 'Google カレンダーに追加';
+
+    return `
+      <li class="todo-item ${t.done ? 'done' : ''}">
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo(${t.id})">
+        <div class="todo-content">
+          <span class="todo-text" ondblclick="editTodo(${t.id}, this)">${escapeHtml(t.text)}</span>
+          ${dateHtml}
+        </div>
+        <div class="todo-actions">
+          <button class="action-btn ${gcalClass}" onclick="addToGoogleCalendar(${t.id})" title="${gcalTitle}">
+            ${t.addedToGcal ? checkCalIcon : calIcon}
+          </button>
+          <button class="action-btn delete-btn" onclick="deleteTodo(${t.id})" title="削除">&times;</button>
+        </div>
+      </li>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+render();
+</script>
+
+</body>
+</html>
