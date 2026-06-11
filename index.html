@@ -610,7 +610,7 @@
 <script>
 const SUPABASE_URL = 'https://oiljpafgjoruigklfxbb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pbGpwYWZnam9ydWlna2xmeGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMzQ4OTEsImV4cCI6MjA5NjcxMDg5MX0.agbHB0N77DUX1JMZlEsnLcdMW3UckLfU30fVXq4oinY';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let todos = [];
 let filter = 'all';
@@ -628,7 +628,7 @@ input.addEventListener('input', () => previewParsedDate());
 // --- Auth ---
 
 async function signInWithGoogle() {
-  await supabase.auth.signInWithOAuth({
+  await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: window.location.origin + window.location.pathname
@@ -637,7 +637,7 @@ async function signInWithGoogle() {
 }
 
 async function signOut() {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   currentUser = null;
   todos = [];
   document.getElementById('loginOverlay').classList.remove('hidden');
@@ -652,7 +652,7 @@ function showApp(user) {
   loadTodos();
 }
 
-supabase.auth.onAuthStateChange((event, session) => {
+sb.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
     showApp(session.user);
   } else {
@@ -662,7 +662,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 (async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     showApp(session.user);
   }
@@ -671,7 +671,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 // --- Supabase DB ---
 
 async function loadTodos() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('todos')
     .select('*')
     .order('created_at', { ascending: false });
@@ -698,15 +698,15 @@ async function saveTodo(todo) {
     user_id: currentUser.id
   };
   if (todo.id) {
-    await supabase.from('todos').update(row).eq('id', todo.id);
+    await sb.from('todos').update(row).eq('id', todo.id);
   } else {
-    const { data } = await supabase.from('todos').insert(row).select();
+    const { data } = await sb.from('todos').insert(row).select();
     if (data && data[0]) todo.id = data[0].id;
   }
 }
 
 async function deleteTodoFromDB(id) {
-  await supabase.from('todos').delete().eq('id', id);
+  await sb.from('todos').delete().eq('id', id);
 }
 
 function save() {
