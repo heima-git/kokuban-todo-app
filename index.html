@@ -6,6 +6,7 @@
 <title>ToDo - 黒板</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kurenaido&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -475,13 +476,99 @@
     letter-spacing: 1px;
     pointer-events: none;
   }
+
+  /* Login overlay */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: #5c4033;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  .login-overlay.hidden { display: none; }
+  .login-box {
+    background: linear-gradient(135deg, #8B6914 0%, #a07828 20%, #6b4f1a 50%, #a07828 80%, #8B6914 100%);
+    padding: 18px;
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    width: 90%;
+    max-width: 400px;
+  }
+  .login-inner {
+    background: linear-gradient(170deg, #2a4a3a 0%, #1e3a2c 30%, #1a3328 50%, #1e3a2c 70%, #2a4a3a 100%);
+    border-radius: 2px;
+    padding: 48px 32px;
+    text-align: center;
+    color: rgba(255,255,255,0.88);
+  }
+  .login-inner h1 { font-size: 28px; margin-bottom: 8px; }
+  .login-inner p { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 32px; }
+  .google-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    color: #333;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 28px;
+    font-family: 'Klee One', serif;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: box-shadow 0.2s;
+  }
+  .google-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+  .google-btn svg { width: 20px; height: 20px; }
+
+  /* User bar */
+  .user-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+  }
+  .user-bar button {
+    background: transparent;
+    border: 1px dashed rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.4);
+    font-family: 'Klee One', serif;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .user-bar button:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.5); }
 </style>
 </head>
 <body>
 
-<div class="board-frame">
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-inner">
+      <h1>きょうの予定</h1>
+      <p>KOKUBAN Todo にログイン</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Google でログイン
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="board-frame" id="appMain" style="display:none;">
 <div class="container">
   <div class="chalk-deco">KOKUBAN Todo</div>
+
+  <div class="user-bar" id="userBar">
+    <span id="userEmail"></span>
+    <button onclick="signOut()">ログアウト</button>
+  </div>
 
   <div class="header">
     <h1>きょうの予定</h1>
@@ -521,9 +608,14 @@
 <div class="toast" id="toast"></div>
 
 <script>
-let todos = JSON.parse(localStorage.getItem('todos') || '[]');
+const SUPABASE_URL = 'https://oiljpafgjoruigklfxbb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pbGpwYWZnam9ydWlna2xmeGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMzQ4OTEsImV4cCI6MjA5NjcxMDg5MX0.agbHB0N77DUX1JMZlEsnLcdMW3UckLfU30fVXq4oinY';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let todos = [];
 let filter = 'all';
 let reminderEnabled = localStorage.getItem('reminderEnabled') === 'true';
+let currentUser = null;
 
 const input = document.getElementById('newTask');
 const dateInput = document.getElementById('newDate');
@@ -533,8 +625,92 @@ const parsedHint = document.getElementById('parsedHint');
 input.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
 input.addEventListener('input', () => previewParsedDate());
 
+// --- Auth ---
+
+async function signInWithGoogle() {
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname
+    }
+  });
+}
+
+async function signOut() {
+  await supabase.auth.signOut();
+  currentUser = null;
+  todos = [];
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  document.getElementById('appMain').style.display = 'none';
+}
+
+function showApp(user) {
+  currentUser = user;
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('appMain').style.display = '';
+  document.getElementById('userEmail').textContent = user.email;
+  loadTodos();
+}
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    showApp(session.user);
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    document.getElementById('appMain').style.display = 'none';
+  }
+});
+
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    showApp(session.user);
+  }
+})();
+
+// --- Supabase DB ---
+
+async function loadTodos() {
+  const { data, error } = await supabase
+    .from('todos')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (!error && data) {
+    todos = data.map(t => ({
+      id: t.id,
+      text: t.text,
+      done: t.done,
+      date: t.date || '',
+      time: t.time || '',
+      addedToGcal: t.added_to_gcal || false
+    }));
+  }
+  render();
+}
+
+async function saveTodo(todo) {
+  const row = {
+    text: todo.text,
+    done: todo.done,
+    date: todo.date || null,
+    time: todo.time || null,
+    added_to_gcal: todo.addedToGcal || false,
+    user_id: currentUser.id
+  };
+  if (todo.id) {
+    await supabase.from('todos').update(row).eq('id', todo.id);
+  } else {
+    const { data } = await supabase.from('todos').insert(row).select();
+    if (data && data[0]) todo.id = data[0].id;
+  }
+}
+
+async function deleteTodoFromDB(id) {
+  await supabase.from('todos').delete().eq('id', id);
+}
+
 function save() {
-  localStorage.setItem('todos', JSON.stringify(todos));
+  // kept for compatibility with command functions; individual ops use saveTodo/deleteTodoFromDB
 }
 
 function showToast(msg) {
@@ -843,7 +1019,7 @@ function findMatchingTasks(sourceDate, sourceTime, keyword) {
   });
 }
 
-function executeCommand(cmd) {
+async function executeCommand(cmd) {
   const matches = findMatchingTasks(cmd.sourceDate, cmd.sourceTime, cmd.keyword);
 
   if (matches.length === 0) {
@@ -853,19 +1029,21 @@ function executeCommand(cmd) {
 
   if (cmd.action === 'cancel') {
     const names = matches.map(t => t.text).join(', ');
-    matches.forEach(t => {
+    for (const t of matches) {
       todos = todos.filter(tt => tt.id !== t.id);
-    });
-    save();
+      await deleteTodoFromDB(t.id);
+    }
     render();
     showToast(`「${names}」を消しました`);
     return true;
   }
 
   if (cmd.action === 'done') {
-    matches.forEach(t => { t.done = true; });
+    for (const t of matches) {
+      t.done = true;
+      await saveTodo(t);
+    }
     const names = matches.map(t => t.text).join(', ');
-    save();
     render();
     showToast(`「${names}」を完了にしました`);
     return true;
@@ -876,16 +1054,16 @@ function executeCommand(cmd) {
       showToast('変更先の日時を指定してください');
       return false;
     }
-    matches.forEach(t => {
+    for (const t of matches) {
       if (cmd.newDate) t.date = cmd.newDate;
       if (cmd.newTime) t.time = cmd.newTime;
       t.addedToGcal = false;
-    });
+      await saveTodo(t);
+    }
     const names = matches.map(t => t.text).join(', ');
     let dest = '';
     if (cmd.newDate) dest += formatDate(cmd.newDate);
     if (cmd.newTime) dest += ` ${cmd.newTime}`;
-    save();
     render();
     showToast(`「${names}」を${dest}に変更しました`);
     return true;
@@ -1016,14 +1194,14 @@ updateReminderUI();
 
 // --- Core ---
 
-function addTodo() {
+async function addTodo() {
   const rawText = input.value.trim();
   if (!rawText) return;
 
   // Try command first
   const cmd = parseCommand(rawText);
   if (cmd) {
-    const executed = executeCommand(cmd);
+    const executed = await executeCommand(cmd);
     if (executed) {
       input.value = '';
       parsedHint.classList.remove('show', 'command-cancel', 'command-done', 'command-change');
@@ -1041,25 +1219,28 @@ function addTodo() {
     if (parsed.date) taskDate = parsed.date;
     if (parsed.time) taskTime = parsed.time;
   }
-  todos.unshift({ id: Date.now(), text: taskText, done: false, date: taskDate, time: taskTime, addedToGcal: false });
+  const todo = { id: null, text: taskText, done: false, date: taskDate, time: taskTime, addedToGcal: false };
+  await saveTodo(todo);
+  todos.unshift(todo);
   input.value = '';
   dateInput.value = '';
   timeInput.value = '09:00';
   parsedHint.classList.remove('show');
-  save();
   render();
 }
 
-function toggleTodo(id) {
+async function toggleTodo(id) {
   const t = todos.find(t => t.id === id);
-  if (t) t.done = !t.done;
-  save();
+  if (t) {
+    t.done = !t.done;
+    await saveTodo(t);
+  }
   render();
 }
 
-function deleteTodo(id) {
+async function deleteTodo(id) {
   todos = todos.filter(t => t.id !== id);
-  save();
+  await deleteTodoFromDB(id);
   render();
 }
 
@@ -1067,13 +1248,15 @@ function editTodo(id, el) {
   el.contentEditable = true;
   el.classList.add('editing');
   el.focus();
-  const finish = () => {
+  const finish = async () => {
     el.contentEditable = false;
     el.classList.remove('editing');
     const t = todos.find(t => t.id === id);
     const newText = el.textContent.trim();
-    if (t && newText) t.text = newText;
-    save();
+    if (t && newText) {
+      t.text = newText;
+      await saveTodo(t);
+    }
     render();
   };
   el.onblur = finish;
@@ -1083,7 +1266,7 @@ function editTodo(id, el) {
   };
 }
 
-function addToGoogleCalendar(id) {
+async function addToGoogleCalendar(id) {
   const t = todos.find(t => t.id === id);
   if (!t) return;
   if (!t.date) { showToast('期日が設定されていません'); return; }
@@ -1097,7 +1280,7 @@ function addToGoogleCalendar(id) {
   const params = new URLSearchParams({ action: 'TEMPLATE', text: t.text, dates: `${start}/${end}`, details: 'ToDo App から追加' });
   window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
   t.addedToGcal = true;
-  save();
+  await saveTodo(t);
   render();
   showToast('Google カレンダーに追加します');
 }
@@ -1181,7 +1364,6 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-render();
 </script>
 
 </body>
