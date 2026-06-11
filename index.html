@@ -616,6 +616,7 @@ let todos = [];
 let filter = 'all';
 let reminderEnabled = localStorage.getItem('reminderEnabled') === 'true';
 let currentUser = null;
+let providerToken = null;
 
 const input = document.getElementById('newTask');
 const dateInput = document.getElementById('newDate');
@@ -631,7 +632,8 @@ async function signInWithGoogle() {
   await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin + window.location.pathname
+      redirectTo: window.location.origin + window.location.pathname,
+      scopes: 'https://www.googleapis.com/auth/calendar.events'
     }
   });
 }
@@ -644,8 +646,9 @@ async function signOut() {
   document.getElementById('appMain').style.display = 'none';
 }
 
-function showApp(user) {
+function showApp(user, session) {
   currentUser = user;
+  if (session?.provider_token) providerToken = session.provider_token;
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('appMain').style.display = '';
   document.getElementById('userEmail').textContent = user.email;
@@ -654,7 +657,7 @@ function showApp(user) {
 
 sb.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
-    showApp(session.user);
+    showApp(session.user, session);
   } else {
     document.getElementById('loginOverlay').classList.remove('hidden');
     document.getElementById('appMain').style.display = 'none';
@@ -664,7 +667,7 @@ sb.auth.onAuthStateChange((event, session) => {
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
-    showApp(session.user);
+    showApp(session.user, session);
   }
 })();
 
@@ -1270,19 +1273,46 @@ async function addToGoogleCalendar(id) {
   const t = todos.find(t => t.id === id);
   if (!t) return;
   if (!t.date) { showToast('期日が設定されていません'); return; }
-  const dateStr = t.date.replace(/-/g, '');
-  const timeStr = (t.time || '09:00').replace(/:/g, '');
-  const endMinutes = parseInt((t.time || '09:00').split(':')[0]) * 60 + parseInt((t.time || '09:00').split(':')[1]) + 60;
+  if (!providerToken) {
+    showToast('カレンダー連携にはログインし直してください');
+    return;
+  }
+  const startTime = t.time || '09:00';
+  const [h, m] = startTime.split(':').map(Number);
+  const endMinutes = h * 60 + m + 60;
   const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
   const endM = String(endMinutes % 60).padStart(2, '0');
-  const start = `${dateStr}T${timeStr}00`;
-  const end = `${dateStr}T${endH}${endM}00`;
-  const params = new URLSearchParams({ action: 'TEMPLATE', text: t.text, dates: `${start}/${end}`, details: 'ToDo App から追加' });
-  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
-  t.addedToGcal = true;
-  await saveTodo(t);
-  render();
-  showToast('Google カレンダーに追加します');
+  const event = {
+    summary: t.text,
+    description: 'KOKUBAN Todo から追加',
+    start: { dateTime: `${t.date}T${startTime}:00`, timeZone: 'Asia/Tokyo' },
+    end: { dateTime: `${t.date}T${endH}:${endM}:00`, timeZone: 'Asia/Tokyo' }
+  };
+  try {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${providerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(event)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (res.status === 401) {
+        showToast('トークン期限切れ。再ログインしてください');
+        providerToken = null;
+      } else {
+        showToast('カレンダー追加に失敗しました');
+      }
+      console.error('Calendar API error:', err);
+      return;
+    }
+    t.addedToGcal = true;
+    await saveTodo(t);
+    render();
+    showToast('Google カレンダーに追加しました');
+  } catch (e) {
+    console.error('Calendar API error:', e);
+    showToast('カレンダー追加に失敗しました');
+  }
 }
 
 function formatDate(dateStr) {
